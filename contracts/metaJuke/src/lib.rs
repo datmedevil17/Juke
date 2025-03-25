@@ -1,8 +1,5 @@
 #![no_std]
-use soroban_sdk::{
-    contract, contractimpl, contracttype, token, Address, BytesN, Env, Map, String, Symbol,
-    Vec, Val, FromVal, IntoVal, TryFromVal, TryInto
-};
+use soroban_sdk::{contract, contractimpl, contracttype, token, Address, BytesN, Env, Map, String, Symbol, Vec, FromVal, TryIntoVal};
 
 // ----- Data Structures -----
 #[contracttype]
@@ -225,14 +222,15 @@ impl MetaJuke {
         track_counter += 1;
         
         let track_id_str = String::from_str(&env, "track_");
-        let mut track_id_bytes: Vec<u8> = track_id_str.to_string().into_bytes();
-        track_id_bytes.extend_from_slice(&track_counter.to_be_bytes());
-        let track_id = env.crypto().sha256(&track_id_bytes);
+        let track_id_bytes: BytesN<32> = BytesN::from_val(&env, &track_id_str.to_val());
+        track_id_bytes.copy_into_slice(track_counter.to_be_bytes().as_mut_slice().try_into().unwrap());
+        let track_id: BytesN<32> = env.crypto().sha256((&track_id_bytes).as_ref()).into();
 
         let track_nft_str = String::from_str(&env, "track_nft_");
-        let mut track_nft_id_bytes: Vec<u8> = track_nft_str.to_string().into_bytes();
-        track_nft_id_bytes.extend_from_slice(&track_counter.to_be_bytes());
-        let track_nft = Address::from_string(&String::from_str(&env, &String::from_utf8(track_nft_id_bytes).unwrap()));
+        let track_nft_id_bytes = BytesN::from_val(&env, &track_nft_str.to_val());
+        track_nft_id_bytes.copy_into_slice(&mut track_counter.to_be_bytes());
+        let track_nft = Address::from_string_bytes(<BytesN<32> as
+        AsRef<soroban_sdk::Bytes>>::as_ref(&BytesN::from_val(&env, &track_nft_id_bytes.to_val())));
         
         let new_track = Track {
             track_id: track_id.clone(),
@@ -305,11 +303,11 @@ impl MetaJuke {
             .unwrap();
         table_counter += 1;
         
-        let table_id_str = String::from_str(&env, "table_");
-        let mut table_id_bytes: Vec<u8> = table_id_str.to_string().into_bytes();
-        table_id_bytes.extend_from_slice(&owner.to_string().into_bytes());
-        table_id_bytes.extend_from_slice(&table_counter.to_be_bytes());
-        let table_id = env.crypto().sha256(&table_id_bytes);
+        let table_id_str:String = String::from_str(&env, "table_");
+        let table_id_bytes: BytesN<32> = BytesN::from_val(&env, table_id_str.as_val());
+        let _ = &mut owner.to_string().copy_into_slice(table_id_bytes.to_array().as_mut());
+        table_id_bytes.copy_into_slice(&mut table_counter.to_be_bytes().as_mut_slice().try_into().unwrap());
+        let table_id: BytesN<32> = env.crypto().sha256((&table_id_bytes).as_ref()).into();
                 
         let new_table = JukeboxTable {
             table_id: table_id.clone(),
@@ -409,11 +407,13 @@ impl MetaJuke {
         request_counter += 1;
         
         let request_id_str = String::from_str(&env, "request_");
-        let mut request_id_bytes: Vec<u8> = request_id_str.to_string().into_bytes();
-        request_id_bytes.extend_from_slice(&requester.to_string().into_bytes());
-        request_id_bytes.extend_from_slice(&track_id.to_string().into_bytes());
-        request_id_bytes.extend_from_slice(&env.ledger().timestamp().to_be_bytes());
-        let request_id = env.crypto().sha256(&request_id_bytes);
+        let request_id_bytes: BytesN<32> = BytesN::from_val(
+            &env,
+            &request_id_str.to_val());
+        request_id_bytes.copy_into_slice(&mut requester.to_val().try_into_val(&env).unwrap());
+        request_id_bytes.copy_into_slice(&mut track_id.try_into_val(&env).unwrap());
+        request_id_bytes.copy_into_slice(&mut env.ledger().timestamp().to_be_bytes().as_mut_slice().try_into().unwrap());
+        let request_id: BytesN<32> = env.crypto().sha256((&request_id_bytes).as_ref()).into();
         
         let new_request = TrackRequest {
             request_id: request_id.clone(),
